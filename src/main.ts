@@ -1,7 +1,15 @@
 import './style.css'
 import Konva from 'konva'
 
-const DEFAULT_LINE_PARAMS = {
+type PointStyle = {
+  size: number
+  fill: string
+  stroke?: string
+  strokeWidth: number
+  rotation: number
+}
+
+const DEFAULT_PARAMS = {
   line: {
     color: '#333',
     width: 1.5,
@@ -12,6 +20,7 @@ const DEFAULT_LINE_PARAMS = {
   point: {
     size: 10,
     fill: '#333',
+    stroke: undefined,
     strokeWidth: 0,
     rotation: 0,
   },
@@ -28,6 +37,7 @@ const LINE_PARAMS = {
   point: {
     size: 10,
     fill: '#b601fc',
+    stroke: undefined,
     strokeWidth: 0,
     rotation: 0,
   },
@@ -35,17 +45,18 @@ const LINE_PARAMS = {
 
 const SPLINE_PARAMS = {
   line: {
-    color: '#b601fc',
+    color: '#118603',
     width: 1.5,
     tension: 0.5,
     cap: 'round' as const,
     join: 'round' as const,
   },
   point: {
-    size: 10,
-    fill: '#b601fc',
-    strokeWidth: 0,
-    rotation: 0,
+    size: 5,
+    fill: '#fff',
+    stroke: '#118603',
+    strokeWidth: 2,
+    rotation: 45,
   },
 } as const
 
@@ -137,10 +148,10 @@ function renderChart(data: ChartEntry[]) {
       ? SPLINE_PARAMS.line
       : seriesConfig?.type === 'line'
         ? LINE_PARAMS.line
-        : DEFAULT_LINE_PARAMS.line
-    const pointParams = seriesConfig?.type === 'line' || seriesConfig?.type === 'spline'
+        : DEFAULT_PARAMS.line
+    const pointParams: PointStyle = seriesConfig?.type === 'line' || seriesConfig?.type === 'spline'
       ? (seriesConfig?.type === 'spline' ? SPLINE_PARAMS.point : LINE_PARAMS.point)
-      : DEFAULT_LINE_PARAMS.point
+      : DEFAULT_PARAMS.point
 
     layer.add(
       new Konva.Line({
@@ -165,6 +176,7 @@ function renderChart(data: ChartEntry[]) {
           width: pointParams.size,
           height: pointParams.size,
           fill: pointParams.fill,
+          stroke: pointParams.stroke,
           strokeWidth: pointParams.strokeWidth,
           rotation: pointParams.rotation,
         }),
