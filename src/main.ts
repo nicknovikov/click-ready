@@ -66,12 +66,20 @@ const AREA_PARAMS = {
   strokeWidth: 1.5,
 } as const
 
+const HISTOGRAM_PARAMS = {
+  fill: '#2563eb',
+  stroke: '#fff',
+  strokeWidth: 1.5,
+  widthRatio: 0.6,
+} as const
+
 type ChartEntry = {
   date: string
   points: {
     first: number
     second: number
     third: number
+    fourth: number
   }
 }
 
@@ -85,21 +93,24 @@ const CHART_CONFIG: Record<string, { type: string }> = {
   third: {
     type: 'area',
   },
+  fourth: {
+    type: 'histogram',
+  },
 }
 
 const CHART_DATA: ChartEntry[] = [
-  { date: '2024-01-01', points: { first: 68, second: 72, third: 80 } },
-  { date: '2024-02-01', points: { first: 42, second: 58, third: 57 } },
-  { date: '2024-03-01', points: { first: 35, second: 49, third: 63 } },
-  { date: '2024-04-01', points: { first: 64, second: 67, third: 70 } },
-  { date: '2024-05-01', points: { first: 51, second: 61, third: 74 } },
-  { date: '2024-06-01', points: { first: 78, second: 84, third: 79 } },
-  { date: '2024-07-01', points: { first: 69, second: 76, third: 83 } },
-  { date: '2024-08-01', points: { first: 91, second: 87, third: 88 } },
-  { date: '2024-09-01', points: { first: 74, second: 79, third: 92 } },
-  { date: '2024-10-01', points: { first: 103, second: 96, third: 97 } },
-  { date: '2024-11-01', points: { first: 88, second: 92, third: 101 } },
-  { date: '2024-12-01', points: { first: 116, second: 109, third: 106 } },
+  { date: '2024-01-01', points: { first: 68, second: 72, third: 80, fourth: 58 } },
+  { date: '2024-02-01', points: { first: 42, second: 58, third: 57, fourth: 63 } },
+  { date: '2024-03-01', points: { first: 35, second: 49, third: 63, fourth: 67 } },
+  { date: '2024-04-01', points: { first: 64, second: 67, third: 70, fourth: 72 } },
+  { date: '2024-05-01', points: { first: 51, second: 61, third: 74, fourth: 69 } },
+  { date: '2024-06-01', points: { first: 78, second: 84, third: 79, fourth: 77 } },
+  { date: '2024-07-01', points: { first: 69, second: 76, third: 83, fourth: 81 } },
+  { date: '2024-08-01', points: { first: 91, second: 87, third: 88, fourth: 85 } },
+  { date: '2024-09-01', points: { first: 74, second: 79, third: 92, fourth: 89 } },
+  { date: '2024-10-01', points: { first: 103, second: 96, third: 97, fourth: 94 } },
+  { date: '2024-11-01', points: { first: 88, second: 92, third: 101, fourth: 98 } },
+  { date: '2024-12-01', points: { first: 116, second: 109, third: 106, fourth: 103 } },
 ]
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <div id="chart"></div>
@@ -131,8 +142,9 @@ function renderChart(data: ChartEntry[]) {
     first: data.map(({ points }) => points.first),
     second: data.map(({ points }) => points.second),
     third: data.map(({ points }) => points.third),
+    fourth: data.map(({ points }) => points.fourth),
   }
-  const allValues = [...seriesValues.first, ...seriesValues.second, ...seriesValues.third]
+  const allValues = [...seriesValues.first, ...seriesValues.second, ...seriesValues.third, ...seriesValues.fourth]
   const padding = {
     top: 24,
     right: 24,
@@ -152,14 +164,14 @@ function renderChart(data: ChartEntry[]) {
     values.flatMap((value, index) => [padding.left + index * xStep, yForValue(value)])
 
   const seriesEntries = Object.entries(seriesValues)
-  const areaSeriesName = seriesEntries.find(([seriesName]) => CHART_CONFIG[seriesName]?.type === 'area')?.[0]
 
-  const orderedSeriesEntries = areaSeriesName
-    ? [
-        ...seriesEntries.filter(([seriesName]) => seriesName === areaSeriesName),
-        ...seriesEntries.filter(([seriesName]) => seriesName !== areaSeriesName),
-      ]
-    : seriesEntries
+  const orderedSeriesEntries = [
+    ...seriesEntries.filter(([seriesName]) => CHART_CONFIG[seriesName]?.type === 'area'),
+    ...seriesEntries.filter(([seriesName]) => CHART_CONFIG[seriesName]?.type === 'histogram'),
+    ...seriesEntries.filter(
+      ([seriesName]) => CHART_CONFIG[seriesName]?.type !== 'area' && CHART_CONFIG[seriesName]?.type !== 'histogram',
+    ),
+  ]
 
   orderedSeriesEntries.forEach(([seriesName, values]) => {
     const points = buildPoints(values)
@@ -194,6 +206,29 @@ function renderChart(data: ChartEntry[]) {
           lineJoin: 'round',
         }),
       )
+      return
+    }
+
+    if (seriesConfig?.type === 'histogram') {
+      const barWidth = Math.max(4, xStep * HISTOGRAM_PARAMS.widthRatio || 0)
+      const baselineY = padding.top + plotHeight
+
+      values.forEach((value, index) => {
+        const x = padding.left + index * xStep - barWidth / 2
+        const y = yForValue(value)
+
+        layer.add(
+          new Konva.Rect({
+            x,
+            y,
+            width: barWidth,
+            height: baselineY - y,
+            fill: HISTOGRAM_PARAMS.fill,
+            stroke: HISTOGRAM_PARAMS.stroke,
+            strokeWidth: HISTOGRAM_PARAMS.strokeWidth,
+          }),
+        )
+      })
       return
     }
 
