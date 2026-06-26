@@ -33,6 +33,22 @@ const LINE_PARAMS = {
   },
 } as const
 
+const SPLINE_PARAMS = {
+  line: {
+    color: '#b601fc',
+    width: 1.5,
+    tension: 0.5,
+    cap: 'round' as const,
+    join: 'round' as const,
+  },
+  point: {
+    size: 10,
+    fill: '#b601fc',
+    strokeWidth: 0,
+    rotation: 0,
+  },
+} as const
+
 type ChartEntry = {
   date: string
   points: {
@@ -46,7 +62,7 @@ const CHART_CONFIG: Record<string, { type: string }> = {
     type: 'line',
   },
   second: {
-    type: 'line',
+    type: 'spline',
   },
 }
 
@@ -117,8 +133,14 @@ function renderChart(data: ChartEntry[]) {
     const points = buildPoints(values)
     const seriesConfig = CHART_CONFIG[seriesName]
 
-    const lineParams = seriesConfig?.type === 'line' ? LINE_PARAMS.line : DEFAULT_LINE_PARAMS.line
-    const pointParams = seriesConfig?.type === 'line' ? LINE_PARAMS.point : DEFAULT_LINE_PARAMS.point
+    const lineParams = seriesConfig?.type === 'spline'
+      ? SPLINE_PARAMS.line
+      : seriesConfig?.type === 'line'
+        ? LINE_PARAMS.line
+        : DEFAULT_LINE_PARAMS.line
+    const pointParams = seriesConfig?.type === 'line' || seriesConfig?.type === 'spline'
+      ? (seriesConfig?.type === 'spline' ? SPLINE_PARAMS.point : LINE_PARAMS.point)
+      : DEFAULT_LINE_PARAMS.point
 
     layer.add(
       new Konva.Line({
