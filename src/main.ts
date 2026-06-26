@@ -2,6 +2,7 @@ import './style.css'
 import Konva from 'konva'
 
 const CHART_DATA = [68, 42, 35, 64, 51, 78, 69, 91, 74, 103, 88, 116]
+const CHART_COLOR = '#b601fc'
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <div id="chart"></div>
@@ -52,12 +53,30 @@ function renderChart(data: number[]) {
   layer.add(
     new Konva.Line({
       points,
-      stroke: '#2563eb',
-      strokeWidth: 3,
+      stroke: CHART_COLOR,
+      strokeWidth: 1.5,
       lineCap: 'round',
       lineJoin: 'round',
     }),
   )
+
+  points.forEach((point, index) => {
+    if (index % 2 !== 0) {
+      return
+    }
+
+    const size = 8
+
+    layer.add(
+      new Konva.Rect({
+        x: point - size / 2,
+        y: points[index + 1] - size / 2,
+        width: size,
+        height: size,
+        fill: CHART_COLOR,
+      }),
+    )
+  })
 
   layer.draw()
 }
