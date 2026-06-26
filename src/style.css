@@ -40,4 +40,8 @@ body {
 #chart {
   width: 800px;
   height: 600px;
+  background-color: white;
+  border: 1px solid #d7dce5;
+  border-radius: 8px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
 }
