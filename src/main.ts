@@ -60,11 +60,18 @@ const SPLINE_PARAMS = {
   },
 } as const
 
+const AREA_PARAMS = {
+  fill: '#fcecbb',
+  stroke: '#fde498',
+  strokeWidth: 1.5,
+} as const
+
 type ChartEntry = {
   date: string
   points: {
     first: number
     second: number
+    third: number
   }
 }
 
@@ -75,21 +82,24 @@ const CHART_CONFIG: Record<string, { type: string }> = {
   second: {
     type: 'spline',
   },
+  third: {
+    type: 'area',
+  },
 }
 
 const CHART_DATA: ChartEntry[] = [
-  { date: '2024-01-01', points: { first: 68, second: 72 } },
-  { date: '2024-02-01', points: { first: 42, second: 58 } },
-  { date: '2024-03-01', points: { first: 35, second: 49 } },
-  { date: '2024-04-01', points: { first: 64, second: 67 } },
-  { date: '2024-05-01', points: { first: 51, second: 61 } },
-  { date: '2024-06-01', points: { first: 78, second: 84 } },
-  { date: '2024-07-01', points: { first: 69, second: 76 } },
-  { date: '2024-08-01', points: { first: 91, second: 87 } },
-  { date: '2024-09-01', points: { first: 74, second: 79 } },
-  { date: '2024-10-01', points: { first: 103, second: 96 } },
-  { date: '2024-11-01', points: { first: 88, second: 92 } },
-  { date: '2024-12-01', points: { first: 116, second: 109 } },
+  { date: '2024-01-01', points: { first: 68, second: 72, third: 80 } },
+  { date: '2024-02-01', points: { first: 42, second: 58, third: 57 } },
+  { date: '2024-03-01', points: { first: 35, second: 49, third: 63 } },
+  { date: '2024-04-01', points: { first: 64, second: 67, third: 70 } },
+  { date: '2024-05-01', points: { first: 51, second: 61, third: 74 } },
+  { date: '2024-06-01', points: { first: 78, second: 84, third: 79 } },
+  { date: '2024-07-01', points: { first: 69, second: 76, third: 83 } },
+  { date: '2024-08-01', points: { first: 91, second: 87, third: 88 } },
+  { date: '2024-09-01', points: { first: 74, second: 79, third: 92 } },
+  { date: '2024-10-01', points: { first: 103, second: 96, third: 97 } },
+  { date: '2024-11-01', points: { first: 88, second: 92, third: 101 } },
+  { date: '2024-12-01', points: { first: 116, second: 109, third: 106 } },
 ]
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <div id="chart"></div>
@@ -120,8 +130,9 @@ function renderChart(data: ChartEntry[]) {
   const seriesValues = {
     first: data.map(({ points }) => points.first),
     second: data.map(({ points }) => points.second),
+    third: data.map(({ points }) => points.third),
   }
-  const allValues = [...seriesValues.first, ...seriesValues.second]
+  const allValues = [...seriesValues.first, ...seriesValues.second, ...seriesValues.third]
   const padding = {
     top: 24,
     right: 24,
@@ -140,7 +151,17 @@ function renderChart(data: ChartEntry[]) {
   const buildPoints = (values: number[]) =>
     values.flatMap((value, index) => [padding.left + index * xStep, yForValue(value)])
 
-  Object.entries(seriesValues).forEach(([seriesName, values]) => {
+  const seriesEntries = Object.entries(seriesValues)
+  const areaSeriesName = seriesEntries.find(([seriesName]) => CHART_CONFIG[seriesName]?.type === 'area')?.[0]
+
+  const orderedSeriesEntries = areaSeriesName
+    ? [
+        ...seriesEntries.filter(([seriesName]) => seriesName === areaSeriesName),
+        ...seriesEntries.filter(([seriesName]) => seriesName !== areaSeriesName),
+      ]
+    : seriesEntries
+
+  orderedSeriesEntries.forEach(([seriesName, values]) => {
     const points = buildPoints(values)
     const seriesConfig = CHART_CONFIG[seriesName]
 
@@ -152,6 +173,29 @@ function renderChart(data: ChartEntry[]) {
     const pointParams: PointStyle = seriesConfig?.type === 'line' || seriesConfig?.type === 'spline'
       ? (seriesConfig?.type === 'spline' ? SPLINE_PARAMS.point : LINE_PARAMS.point)
       : DEFAULT_PARAMS.point
+
+    if (seriesConfig?.type === 'area') {
+      const areaPoints = [...points, padding.left + plotWidth, padding.top + plotHeight, padding.left, padding.top + plotHeight]
+
+      layer.add(
+        new Konva.Line({
+          points: areaPoints,
+          closed: true,
+          fill: AREA_PARAMS.fill,
+        }),
+      )
+
+      layer.add(
+        new Konva.Line({
+          points,
+          stroke: AREA_PARAMS.stroke,
+          strokeWidth: AREA_PARAMS.strokeWidth,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }),
+      )
+      return
+    }
 
     layer.add(
       new Konva.Line({
