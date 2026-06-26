@@ -140,6 +140,8 @@ let costPointMarkers: Konva.Rect[] = []
 let costPointCenters: Array<{ x: number; y: number }> = []
 let currentPadding = { top: 24, right: 24, bottom: 24, left: 24 }
 let currentXStep = 0
+let activeHoverIndex: number | null = null
+let hoverAnimationFrame: number | null = null
 let chartMouseMoveHandler: ((event: MouseEvent) => void) | null = null
 let chartMouseLeaveHandler: (() => void) | null = null
 
@@ -297,23 +299,75 @@ function renderChart(data: ChartEntry[]) {
   currentXStep = xStep
 
   const updateHoverCircle = (index: number) => {
-    if (hoverCircle) {
-      hoverCircle.remove()
+    const animateMarker = (marker: Konva.Rect, size: number, center: { x: number; y: number }, stroke: string | undefined, strokeWidth: number) => {
+      new Konva.Tween({
+        node: marker,
+        duration: 0.4,
+        easing: Konva.Easings.EaseOut,
+        x: center.x - size / 2,
+        y: center.y - size / 2,
+        width: size,
+        height: size,
+        stroke,
+        strokeWidth,
+      }).play()
+    }
+
+    const animateCircle = (x: number, y: number) => {
+      if (hoverCircle) {
+        const previousCircle = hoverCircle
+        new Konva.Tween({
+          node: previousCircle,
+          duration: 0.32,
+          easing: Konva.Easings.EaseOut,
+          radius: 0,
+          onFinish: () => {
+            if (hoverCircle === previousCircle) {
+              hoverCircle = null
+            }
+            previousCircle.remove()
+          },
+        }).play()
+      }
+
+      hoverCircle = new Konva.Circle({
+        x,
+        y,
+        radius: 0,
+        fill: 'rgba(182, 1, 252, 0.2)',
+      })
+
+      layer.add(hoverCircle)
+      new Konva.Tween({
+        node: hoverCircle,
+        duration: 0.4,
+        easing: Konva.Easings.EaseOut,
+        radius: LINE_PARAMS.hover.radius,
+      }).play()
     }
 
     if (index < 0 || index >= data.length) {
-      hoverCircle = null
       costPointMarkers.forEach((marker, markerIndex) => {
         const size = LINE_PARAMS.point.size
         const center = costPointCenters[markerIndex]
-        marker.setAttrs({
-          x: center.x - size / 2,
-          y: center.y - size / 2,
-          width: size,
-          height: size,
-        })
+        animateMarker(marker, size, center, LINE_PARAMS.point.stroke, LINE_PARAMS.point.strokeWidth)
       })
-      layer.draw()
+
+      if (hoverCircle) {
+        const previousCircle = hoverCircle
+        new Konva.Tween({
+          node: previousCircle,
+          duration: 0.32,
+          easing: Konva.Easings.EaseOut,
+          radius: 0,
+          onFinish: () => {
+            if (hoverCircle === previousCircle) {
+              hoverCircle = null
+            }
+            previousCircle.remove()
+          },
+        }).play()
+      }
       return
     }
 
@@ -323,32 +377,17 @@ function renderChart(data: ChartEntry[]) {
       const center = costPointCenters[markerIndex]
       const stroke = isHovered ? '#fff' : LINE_PARAMS.point.stroke
       const strokeWidth = isHovered ? 1 : LINE_PARAMS.point.strokeWidth
-      marker.setAttrs({
-        x: center.x - size / 2,
-        y: center.y - size / 2,
-        width: size,
-        height: size,
-        stroke,
-        strokeWidth,
-      })
+      animateMarker(marker, size, center, stroke, strokeWidth)
     })
 
     const x = costPoints[index * 2]
     const y = costPoints[index * 2 + 1]
-
-    hoverCircle = new Konva.Circle({
-      x,
-      y,
-      radius: LINE_PARAMS.hover.radius,
-      fill: 'rgba(182, 1, 252, 0.2)',
-    })
-
-    layer.add(hoverCircle)
-    layer.draw()
+    animateCircle(x, y)
   }
 
   if (chartMouseMoveHandler) {
     chart.removeEventListener('mousemove', chartMouseMoveHandler)
+    chart.removeEventListener('mouseenter', chartMouseMoveHandler)
   }
 
   if (chartMouseLeaveHandler) {
@@ -356,20 +395,69 @@ function renderChart(data: ChartEntry[]) {
   }
 
   chartMouseMoveHandler = (event) => {
-    const rect = chart.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const relativeX = x - currentPadding.left
-
-    if (relativeX < 0) {
-      updateHoverCircle(-1)
-      return
+    if (hoverAnimationFrame !== null) {
+      cancelAnimationFrame(hoverAnimationFrame)
     }
 
-    const index = Math.round(relativeX / currentXStep)
-    updateHoverCircle(index)
+    hoverAnimationFrame = window.requestAnimationFrame(() => {
+      hoverAnimationFrame = null
+
+      const rect = chart.getBoundingClientRect()
+      const x = event.clientX - rect.left
+      const relativeX = x - currentPadding.left
+
+      if (relativeX < 0) {
+        if (activeHoverIndex !== null) {
+          activeHoverIndex = null
+          updateHoverCircle(-1)
+        }
+        return
+      }
+
+      const rawIndex = Math.round(relativeX / currentXStep)
+      const clampedIndex = Math.max(0, Math.min(costPointCenters.length - 1, rawIndex))
+      const targetIndex = Number.isFinite(clampedIndex) ? clampedIndex : 0
+      const targetCenter = costPointCenters[targetIndex]
+      const pointerX = x
+
+      if (!targetCenter) {
+        if (activeHoverIndex !== null) {
+          activeHoverIndex = null
+          updateHoverCircle(-1)
+        }
+        return
+      }
+
+      const targetDistance = Math.abs(pointerX - targetCenter.x)
+      const currentDistance = activeHoverIndex !== null
+        ? Math.abs(pointerX - costPointCenters[activeHoverIndex].x)
+        : Infinity
+      const switchThreshold = 8
+
+      let nextIndex = targetIndex
+      if (activeHoverIndex !== null && targetIndex !== activeHoverIndex) {
+        if (targetDistance > currentDistance + switchThreshold) {
+          nextIndex = activeHoverIndex
+        }
+      }
+
+      if (nextIndex === activeHoverIndex) {
+        return
+      }
+
+      activeHoverIndex = nextIndex
+      updateHoverCircle(nextIndex)
+    })
   }
 
   chartMouseLeaveHandler = () => {
+    if (hoverAnimationFrame !== null) {
+      cancelAnimationFrame(hoverAnimationFrame)
+      hoverAnimationFrame = null
+    }
+
+    activeHoverIndex = null
+
     if (hoverCircle) {
       hoverCircle.remove()
       hoverCircle = null
@@ -390,6 +478,7 @@ function renderChart(data: ChartEntry[]) {
   }
 
   chart.addEventListener('mousemove', chartMouseMoveHandler)
+  chart.addEventListener('mouseenter', chartMouseMoveHandler)
   chart.addEventListener('mouseleave', chartMouseLeaveHandler)
 
   layer.draw()
