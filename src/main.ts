@@ -41,6 +41,10 @@ const LINE_PARAMS = {
     strokeWidth: 0,
     rotation: 0,
   },
+  hover: {
+    radius: 18,
+    size: 6,
+  },
 } as const
 
 const SPLINE_PARAMS = {
@@ -131,12 +135,22 @@ const stage = new Konva.Stage({
 const layer = new Konva.Layer()
 stage.add(layer)
 
+let hoverCircle: Konva.Circle | null = null
+let costPointMarkers: Konva.Rect[] = []
+let costPointCenters: Array<{ x: number; y: number }> = []
+let currentPadding = { top: 24, right: 24, bottom: 24, left: 24 }
+let currentXStep = 0
+let chartMouseMoveHandler: ((event: MouseEvent) => void) | null = null
+let chartMouseLeaveHandler: (() => void) | null = null
+
 function renderChart(data: ChartEntry[]) {
   const width = chart.clientWidth
   const height = chart.clientHeight
 
   stage.size({ width, height })
   layer.destroyChildren()
+  costPointMarkers = []
+  costPointCenters = []
 
   if (width === 0 || height === 0 || data.length === 0) {
     return
@@ -252,20 +266,131 @@ function renderChart(data: ChartEntry[]) {
         return
       }
 
-      layer.add(
-        new Konva.Rect({
-          x: point - pointParams.size / 2,
-          y: points[index + 1] - pointParams.size / 2,
-          width: pointParams.size,
-          height: pointParams.size,
-          fill: pointParams.fill,
-          stroke: pointParams.stroke,
-          strokeWidth: pointParams.strokeWidth,
-          rotation: pointParams.rotation,
-        }),
-      )
+      const marker = new Konva.Rect({
+        x: point - pointParams.size / 2,
+        y: points[index + 1] - pointParams.size / 2,
+        width: pointParams.size,
+        height: pointParams.size,
+        fill: pointParams.fill,
+        stroke: pointParams.stroke,
+        strokeWidth: pointParams.strokeWidth,
+        rotation: pointParams.rotation,
+      })
+
+      layer.add(marker)
+
+      if (seriesName === 'cost') {
+        costPointMarkers.push(marker)
+        costPointCenters.push({ x: point, y: points[index + 1] })
+      }
     })
   })
+
+  if (hoverCircle) {
+    hoverCircle.remove()
+    hoverCircle = null
+  }
+
+  const costValues = data.map(({ points }) => points.cost)
+  const costPoints = costValues.flatMap((value, index) => [padding.left + index * xStep, yForValue(value)])
+  currentPadding = padding
+  currentXStep = xStep
+
+  const updateHoverCircle = (index: number) => {
+    if (hoverCircle) {
+      hoverCircle.remove()
+    }
+
+    if (index < 0 || index >= data.length) {
+      hoverCircle = null
+      costPointMarkers.forEach((marker, markerIndex) => {
+        const size = LINE_PARAMS.point.size
+        const center = costPointCenters[markerIndex]
+        marker.setAttrs({
+          x: center.x - size / 2,
+          y: center.y - size / 2,
+          width: size,
+          height: size,
+        })
+      })
+      layer.draw()
+      return
+    }
+
+    costPointMarkers.forEach((marker, markerIndex) => {
+      const isHovered = markerIndex === index
+      const size = isHovered ? LINE_PARAMS.hover.size : LINE_PARAMS.point.size
+      const center = costPointCenters[markerIndex]
+      const stroke = isHovered ? '#fff' : LINE_PARAMS.point.stroke
+      const strokeWidth = isHovered ? 1 : LINE_PARAMS.point.strokeWidth
+      marker.setAttrs({
+        x: center.x - size / 2,
+        y: center.y - size / 2,
+        width: size,
+        height: size,
+        stroke,
+        strokeWidth,
+      })
+    })
+
+    const x = costPoints[index * 2]
+    const y = costPoints[index * 2 + 1]
+
+    hoverCircle = new Konva.Circle({
+      x,
+      y,
+      radius: LINE_PARAMS.hover.radius,
+      fill: 'rgba(182, 1, 252, 0.2)',
+    })
+
+    layer.add(hoverCircle)
+    layer.draw()
+  }
+
+  if (chartMouseMoveHandler) {
+    chart.removeEventListener('mousemove', chartMouseMoveHandler)
+  }
+
+  if (chartMouseLeaveHandler) {
+    chart.removeEventListener('mouseleave', chartMouseLeaveHandler)
+  }
+
+  chartMouseMoveHandler = (event) => {
+    const rect = chart.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const relativeX = x - currentPadding.left
+
+    if (relativeX < 0) {
+      updateHoverCircle(-1)
+      return
+    }
+
+    const index = Math.round(relativeX / currentXStep)
+    updateHoverCircle(index)
+  }
+
+  chartMouseLeaveHandler = () => {
+    if (hoverCircle) {
+      hoverCircle.remove()
+      hoverCircle = null
+    }
+    costPointMarkers.forEach((marker, markerIndex) => {
+      const size = LINE_PARAMS.point.size
+      const center = costPointCenters[markerIndex]
+      marker.setAttrs({
+        x: center.x - size / 2,
+        y: center.y - size / 2,
+        width: size,
+        height: size,
+        stroke: LINE_PARAMS.point.stroke,
+        strokeWidth: LINE_PARAMS.point.strokeWidth,
+      })
+    })
+    layer.draw()
+  }
+
+  chart.addEventListener('mousemove', chartMouseMoveHandler)
+  chart.addEventListener('mouseleave', chartMouseLeaveHandler)
 
   layer.draw()
 }
