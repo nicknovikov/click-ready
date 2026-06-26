@@ -1,12 +1,53 @@
 import './style.css'
 import Konva from 'konva'
 
+const DEFAULT_LINE_PARAMS = {
+  line: {
+    color: '#333',
+    width: 1.5,
+    tension: 0,
+    cap: 'round' as const,
+    join: 'round' as const,
+  },
+  point: {
+    size: 10,
+    fill: '#333',
+    strokeWidth: 0,
+    rotation: 0,
+  },
+}
+
+const LINE_PARAMS = {
+  line: {
+    color: '#b601fc',
+    width: 1.5,
+    tension: 0,
+    cap: 'round' as const,
+    join: 'round' as const,
+  },
+  point: {
+    size: 10,
+    fill: '#b601fc',
+    strokeWidth: 0,
+    rotation: 0,
+  },
+} as const
+
 type ChartEntry = {
   date: string
   points: {
     first: number
     second: number
   }
+}
+
+const CHART_CONFIG: Record<string, { type: string }> = {
+  first: {
+    type: 'line',
+  },
+  second: {
+    type: 'line',
+  },
 }
 
 const CHART_DATA: ChartEntry[] = [
@@ -23,8 +64,6 @@ const CHART_DATA: ChartEntry[] = [
   { date: '2024-11-01', points: { first: 88, second: 92 } },
   { date: '2024-12-01', points: { first: 116, second: 109 } },
 ]
-const CHART_COLORS = ['#b601fc', '#19c4ff']
-
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <div id="chart"></div>
 `
@@ -74,16 +113,21 @@ function renderChart(data: ChartEntry[]) {
   const buildPoints = (values: number[]) =>
     values.flatMap((value, index) => [padding.left + index * xStep, yForValue(value)])
 
-  Object.entries(seriesValues).forEach(([_, values], seriesIndex) => {
+  Object.entries(seriesValues).forEach(([seriesName, values]) => {
     const points = buildPoints(values)
+    const seriesConfig = CHART_CONFIG[seriesName]
+
+    const lineParams = seriesConfig?.type === 'line' ? LINE_PARAMS.line : DEFAULT_LINE_PARAMS.line
+    const pointParams = seriesConfig?.type === 'line' ? LINE_PARAMS.point : DEFAULT_LINE_PARAMS.point
 
     layer.add(
       new Konva.Line({
         points,
-        stroke: CHART_COLORS[seriesIndex] ?? '#000000',
-        strokeWidth: 1.5,
-        lineCap: 'round',
-        lineJoin: 'round',
+        stroke: lineParams.color,
+        strokeWidth: lineParams.width,
+        tension: lineParams.tension,
+        lineCap: lineParams.cap,
+        lineJoin: lineParams.join,
       }),
     )
 
@@ -92,15 +136,15 @@ function renderChart(data: ChartEntry[]) {
         return
       }
 
-      const size = 8
-
       layer.add(
         new Konva.Rect({
-          x: point - size / 2,
-          y: points[index + 1] - size / 2,
-          width: size,
-          height: size,
-          fill: CHART_COLORS[seriesIndex] ?? '#000000',
+          x: point - pointParams.size / 2,
+          y: points[index + 1] - pointParams.size / 2,
+          width: pointParams.size,
+          height: pointParams.size,
+          fill: pointParams.fill,
+          strokeWidth: pointParams.strokeWidth,
+          rotation: pointParams.rotation,
         }),
       )
     })
